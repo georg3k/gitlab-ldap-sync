@@ -1,0 +1,22 @@
+{
+  "log": "/var/log/gitlab-ldap-sync.log",
+  "log_level": "INFO",
+  "gitlab": {
+    "api": "https://gitlab.example.com",
+    "ssl_verify": true,
+    "private_token": "gitlab_token",
+    "oauth_token": "",
+    "ldap_provider": "LDAP",
+    "create_user": true,
+    "group_visibility": "internal",
+    "add_description": true
+  },
+  "ldap": {
+    "url": "ldaps://ldap.example.com",
+    "users_base_dn": "ou=People,dc=example,dc=com",
+    "groups_base_dn": "ou=group,dc=example,dc=com",
+    "bind_dn": "cn=readonly,dc=example,dc=com",
+    "password": "ldap_password",
+    "groups_filter": ["admins", "developers", "testers"]
+  }
+}
