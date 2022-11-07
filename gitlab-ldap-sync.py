@@ -62,7 +62,7 @@ if __name__ == "__main__":
             # LDAP authentication
             logging.info('Connecting to LDAP')
             if not config['ldap']['url']:
-                logging.error('You should configure LDAP in configuration file')
+                logging.error('You should configure LDAP in config.json')
                 sys.exit(1)
             try:
                 ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
@@ -130,7 +130,7 @@ if __name__ == "__main__":
                                 'name': user_data['cn'][0].decode(),
                                 'identities': 'cn=%s,%s' % (user_data['cn'][0].decode(), str(config['ldap']['users_base_dn'])),
                                 'email': user_data['mail'][0].decode(),
-                                'sshPublicKey': [key.decode() for key in user_data['sshPublicKey']] if 'sshPublicKey' in user_data.keys() else []
+                                'sshPublicKey': [key.decode() for key in user_data['sshPublicKey']][0] if 'sshPublicKey' in user_data.keys() else []
                             })
                 ldap_groups.append(ldap_group)
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                                                     filterstr='(objectClass=posixAccount)',
                                                     attrlist=['cn', 'uid', 'mail', 'gidNumber', 'sshPublicKey']):
                 for ldap_group in ldap_groups:
-                    if user_data['gidNumber'][0].decode() == ldap_group['gidNumber'] and 'mail' in user_data.keys():
+                    if user_data['gidNumber'][0].decode() == ldap_group['gidNumber']:
                         ldap_group["members"].append({
                             'username': user_data['uid'][0].decode(),
                             'name': user_data['cn'][0].decode(),
@@ -181,7 +181,7 @@ if __name__ == "__main__":
 
                     # Check if a given user is present in Gitlab group
                     if l_member['username'] not in [g_member['username'] for g_member in gitlab_groups[gitlab_groups_names.index(l_group['name'])]['members']]:
-                        logging.info('|  |- User %s is member in LDAP group but not in GitLab group , adding.' % l_member['name'])
+                        logging.info('|  |- User %s is member in LDAP group but not in GitLabgroup , adding.' % l_member['name'])
                         g = [group for group in gl.groups.list(search=l_group['name']) if group.name == l_group['name']][0]
                         g.save()
                         u = gl.users.list(search=l_member['username'])
@@ -194,14 +194,6 @@ if __name__ == "__main__":
                             if u not in g.members.list(all=True):
                                 g.members.create({'user_id': u.id, 'access_level': gitlab.DEVELOPER_ACCESS})
                             g.save()
-
-                            # Update admin privileges
-                            headers = {
-                                'PRIVATE-TOKEN': config['gitlab']['private_token'],
-                                'Sudo': 'root'
-                            }
-                            if l_group['name'] == 'admins':
-                                requests.put('%s/api/v4/users/%s?admin=true' % (config['gitlab']['api'], u.id), headers=headers)
 
                         # If user doesn't exist in Gitlab
                         else:
@@ -222,13 +214,11 @@ if __name__ == "__main__":
                                     })
 
                                     # Sync SSH public keys
-                                    if 'sshPublicKey' in l_member.keys():
-                                        for key_idx, key in enumerate(l_member['sshPublicKey']):
-                                            user.keys.create({
-                                                'title': 'Synced account SSH key #' + str(key_idx),
-                                                'key': key
-                                            })
-
+                                    for key in l_member['sshPublicKey']:
+                                        user.keys.create({
+                                            'title': 'Synced account SSH key',
+                                            'key': key
+                                        })
                                 except gitlab.exceptions as e:
                                     if e.response_code == '409':
                                         user = gl.users.create({
@@ -242,9 +232,9 @@ if __name__ == "__main__":
                                             'skip_confirmation': True
                                         })
                                         
-                                        for key_idx, key in enumerate(l_member['sshPublicKey']):
+                                        for key in l_member['sshPublicKey']:
                                             user.keys.create({
-                                                'title': 'Synced account SSH key #' + str(key_idx),
+                                                'title': 'Synced account SSH key',
                                                 'key': key
                                             })
 
@@ -264,28 +254,21 @@ if __name__ == "__main__":
 
                             # Sync SSH public keys
                             for key in u.keys.list():
-                                if 'Synced account SSH key' in key.title:
+                                if key.title == 'Synced account SSH key':
                                     u.keys.delete(key.id)
                             u.save()
 
-                            # Update SSH key
-                            if 'sshPublicKey' in l_member.keys():
-                                for key_idx, key in enumerate(l_member['sshPublicKey']):
-                                    try:
-                                        u.keys.create({
-                                            'title': 'Synced account SSH key #' + str(key_idx),
-                                            'key': key
-                                        })
-                                    except:
-                                        logging.error('| |- Failed to set key for user %s' % l_member['name'])
+                            for key in l_member['sshPublicKey']:
+                                u.keys.create({
+                                    'title': 'Synced account SSH key',
+                                    'key': key
+                                })
 
-                            # Update admin privileges
+                            # Set email
                             headers = {
                                 'PRIVATE-TOKEN': config['gitlab']['private_token'],
                                 'Sudo': 'root'
                             }
-                            if l_group['name'] == 'admins':
-                                requests.put('%s/api/v4/users/%s?admin=true' % (config['gitlab']['api'], u.id), headers=headers)
 
                             # If email in LDAP was updated
                             # Important!: waiting for a bug to be fixed: https://gitlab.com/gitlab-org/gitlab/-/issues/25077
@@ -303,6 +286,7 @@ if __name__ == "__main__":
                             #            requests.delete('%s/api/v4/users/%s/emails/%s' % (config['gitlab']['api'], u.id, email.id), headers=headers)
 
                             # Set name
+                            print('updating name from %s to %s' % (u.name, l_member['name']))
                             u.name = l_member['name']
                             u.save()
 
@@ -322,8 +306,8 @@ if __name__ == "__main__":
                             continue
 
                         # Remove user from Gitlab group if it was removed from LDAP group
-                        if g_member['username'] not in [um['username'] for um in ldap_groups[ldap_groups_names.index(g_group['name'])]['members']]:
-                            if str(config['ldap']['users_base_dn']) not in g_member['identities'][0]:
+                        if g_member not in ldap_groups[ldap_groups_names.index(g_group['name'])]['members']:
+                            if 'sn=%s,%s' % (g_member['username'], str(config['ldap']['users_base_dn'])) not in g_member['identities']:
                                 logging.info('|  |- Not a LDAP user, skipping.')
                             else:
                                 logging.info('|  |- User %s no longer in LDAP Group, removing.' % g_member['name'])
@@ -333,13 +317,10 @@ if __name__ == "__main__":
                                     g.members.delete(u.id)
                                     g.save()
 
-                                    # Disable admin access if user was removed from 'admins' LDAP group
-                                    if g_group['name'] == 'admins':
-                                        headers = {
-                                            'PRIVATE-TOKEN': config['gitlab']['private_token'],
-                                            'Sudo': 'root'
-                                            }
-                                        requests.put('%s/api/v4/users/%s?admin=false' % (config['gitlab']['api'], u.id), headers=headers)
+                                # Disable admin access if user was removed from 'admins' LDAP group
+                                if g_group['name'] == 'admins':
+                                    u.is_admin = False
+                                    u.save()
                         else:
                             logging.info('|  |- User %s still in LDAP Group, skipping.' % g_member['name'])
 
