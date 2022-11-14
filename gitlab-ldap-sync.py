@@ -223,11 +223,11 @@ if __name__ == "__main__":
 
                                     # Sync SSH public keys
                                     if 'sshPublicKey' in l_member.keys():
-                                        key = l_member['sshPublicKey']
-                                        user.keys.create({
-                                            'title': 'Synced account SSH key',
-                                            'key': key
-                                        })
+                                        for key_idx, key in enumerate(l_member['sshPublicKey']):
+                                            user.keys.create({
+                                                'title': 'Synced account SSH key #' + str(key_idx),
+                                                'key': key
+                                            })
                                 except gitlab.exceptions as e:
                                     if e.response_code == '409':
                                         user = gl.users.create({
@@ -241,9 +241,9 @@ if __name__ == "__main__":
                                             'skip_confirmation': True
                                         })
                                         
-                                        for key in l_member['sshPublicKey']:
+                                        for key_idx, key in enumerate(l_member['sshPublicKey']):
                                             user.keys.create({
-                                                'title': 'Synced account SSH key',
+                                                'title': 'Synced account SSH key #' + str(key_idx),
                                                 'key': key
                                             })
 
@@ -263,20 +263,20 @@ if __name__ == "__main__":
 
                             # Sync SSH public keys
                             for key in u.keys.list():
-                                if key.title == 'Synced account SSH key':
+                                if 'Synced account SSH key' in key.title:
                                     u.keys.delete(key.id)
                             u.save()
 
                             # Update SSH key
                             if 'sshPublicKey' in l_member.keys():
-                                key = l_member['sshPublicKey']
-                                try:
-                                    u.keys.create({
-                                        'title': 'Synced account SSH key',
-                                        'key': key
-                                    })
-                                except:
-                                    logging.error('| |- Failed to set key for user %s' % l_member['name'])
+                                for key_idx, key in enumerate(l_member['sshPublicKey']):
+                                    try:
+                                        u.keys.create({
+                                            'title': 'Synced account SSH key #' + str(key_idx),
+                                            'key': key
+                                        })
+                                    except:
+                                        logging.error('| |- Failed to set key for user %s' % l_member['name'])
 
                             # Update admin privileges
                             headers = {
