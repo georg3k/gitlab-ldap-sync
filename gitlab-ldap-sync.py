@@ -130,7 +130,7 @@ if __name__ == "__main__":
                                 'name': user_data['cn'][0].decode(),
                                 'identities': 'cn=%s,%s' % (user_data['cn'][0].decode(), str(config['ldap']['users_base_dn'])),
                                 'email': user_data['mail'][0].decode(),
-                                'sshPublicKey': [key.decode() for key in user_data['sshPublicKey']][0] if 'sshPublicKey' in user_data.keys() else []
+                                'sshPublicKey': [key.decode() for key in user_data['sshPublicKey']] if 'sshPublicKey' in user_data.keys() else []
                             })
                 ldap_groups.append(ldap_group)
 
@@ -140,13 +140,13 @@ if __name__ == "__main__":
                                                     filterstr='(objectClass=posixAccount)',
                                                     attrlist=['cn', 'uid', 'mail', 'gidNumber', 'sshPublicKey']):
                 for ldap_group in ldap_groups:
-                    if user_data['gidNumber'][0].decode() == ldap_group['gidNumber']:
+                    if user_data['gidNumber'][0].decode() == ldap_group['gidNumber'] and 'mail' in user_data.keys():
                         ldap_group["members"].append({
                             'username': user_data['uid'][0].decode(),
                             'name': user_data['cn'][0].decode(),
                             'identities': 'cn=%s,%s' % (user_data['cn'][0].decode(), str(config['ldap']['users_base_dn'])),
                             'email': user_data['mail'][0].decode(),
-                            'sshPublicKey': [key.decode() for key in user_data['sshPublicKey']][0] if 'sshPublicKey' in user_data.keys() else []
+                            'sshPublicKey': [key.decode() for key in user_data['sshPublicKey']] if 'sshPublicKey' in user_data.keys() else []
                         })
             logging.info('Done.')
 
